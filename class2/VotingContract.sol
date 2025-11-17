@@ -10,10 +10,7 @@ pragma solidity ^0.8.30;
 // Set voting duration
 // Availability of record
 
-
-
 contract VotingContract {
-
     // Candidate object
     struct Candidate {
         uint256 id;
@@ -30,9 +27,12 @@ contract VotingContract {
     uint256 private candidateCount = 1;
     uint256 public votingDuration = 200;
 
+    bool public votingOpen = false;
+    mapping(address => bool) public hasVoted;
+
     // Store candidates
     // We can use a mapping or we can use an array id: candidate
-    mapping (uint256 => Candidate) public candidates;
+    mapping(uint256 => Candidate) public candidates;
     Candidate[] public candidateArray = [];
 
     // A mapping for registered voters. 0x0efo3: true -- voter is regitered
@@ -47,28 +47,35 @@ contract VotingContract {
      * @param name Name of the candidate
      * return name, id of the candidate
      */
-    function registerCandidate(string memory _name) public returns (string memory, uint256) {
-        Candidate memory newCandidate = Candidate(candidateCount, _name, 0, false);
+    function registerCandidate(
+        string memory _name
+    ) public returns (string memory, uint256) {
+        Candidate memory newCandidate = Candidate(
+            candidateCount,
+            _name,
+            0,
+            false
+        );
         candidateArray.push(newCandidate);
         candidates[candidateCount] = newCandidate;
         // Broadcast a candidate has been registered
         emit CandidateRegistered(_name, candidateCount);
-        candidateCount ++; // increase the candidate count 
+        candidateCount++; // increase the candidate count
     }
 
-    function getCandidate(uint256 _id)  returns (Candidate memory) {
+    function getCandidate(uint256 _id) returns (Candidate memory) {
         return candidates[_id];
     }
-    
+
     function getCandidateWithHighestVote() public returns (Candidate memory) {
         uint256 initialMaxVote = candidateArray[0].score;
         uint256 winnerId = 0;
-       for (uint256 i = 0; i < candidateArray.length; i++) {
+        for (uint256 i = 0; i < candidateArray.length; i++) {
             if (candidateArray[i].score > initialMaxVote) {
                 winnerId = candidateArray[i].id;
             }
-       }
-       return candidates[winnerId]; 
+        }
+        return candidates[winnerId];
     }
 
     function registerAVoter() public {
@@ -80,12 +87,28 @@ contract VotingContract {
     }
 
     function voteForACandidate(uint256 id) public {
-        if (registeredVoters[msg.sender] != true) revert ("Voter is not registered");
-        // require(registeredVoters[msg.sender], "Voter is not registered");
-        Candidate memory candidateToVote = candidates[id]; // Get the candidate
-        candidateToVote.score += 1;
-        candidates[id] = candidateToVote;
+       require(registeredVoters[msg.sender], "Voter is not registered");
+        require(!hasVoted[msg.sender], "Voter already voted");
 
-        emit userVoted(msg.sender, id, candidateToVote.name);
+        candidates[id].score += 1;
+        hasVoted[msg.sender] = true;
+
+        emit userVoted(msg.sender, id, candidates[id].name);
+    }
+
+    function votersCannotVoteMoreThanOnce() public {
+        require(registeredVoters[msg.sender], "Voter is not registered");
+        require(!hasVoted[msg.sender], "Voter already voted");
+
+        hasVoted[msg.sender] = true;
+    }
+
+    function setVotingDuration(uint256 duration) public {
+        require(msg.sender == owner, "Only owner can set voting duration");
+        votingDuration = duration;
+    }
+
+    function availabilityOfRecord() public view returns (uint256) {
+        return candidateArray.length;
     }
 }
